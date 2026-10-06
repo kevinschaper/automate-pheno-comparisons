@@ -43,6 +43,35 @@ Use a separate `--working-dir` per annotation source.
   the maximum IC and semsimian picks one arbitrarily. About 20-35x faster. Set
   `DUCKSIM_MEMORY_LIMIT` (e.g. `100GB`) and `DUCKSIM_THREADS` under SLURM.
 
+## Building from the Monarch KG (`pheno_comparisons` package)
+
+The `pheno_comparisons` package builds the same tables from a closurized
+`monarch-kg.duckdb`, using koza's `annotation-information-content` and
+`pairwise-similarity` operations. No runoak, semsimian or PHENIO SQLite is needed.
+It is what the monarch-ingest KG build runs:
+
+```bash
+uv sync
+# 1. write the annotation-IC tables into the KG (needs write access)
+uv run pheno-comparisons information-content monarch-kg.duckdb
+# 2. write the tarballs (reads the KG read-only)
+uv run pheno-comparisons build monarch-kg.duckdb -o pheno-comparisons \
+    --kg-version 2026-09-04 --metadata metadata.yaml --memory-limit 32GB --threads 8
+```
+
+| Comparison | Information content from (KG `has_phenotype` edges) | Terms |
+|---|---|---|
+| HP-HP | MONDO diseases -> HP (DiseaseToPhenotypicFeatureAssociation) | HP:0000118 x HP:0000118 |
+| HP-MP | MGI genes -> MP (GeneToPhenotypicFeatureAssociation) | HP:0000118 x MP:0000001 |
+| HP-ZP | ZFIN genes -> ZP (GeneToPhenotypicFeatureAssociation) | HP:0000118 x ZP:0000000 |
+
+Tarballs are named `<comparison>_kg-<release>.tsv.tar.gz`. They keep the
+historical 16-column TSV layout; columns semsimian never filled are the
+string `None`. On KG 2026-09-04 the HP-MP table reproduces every row and score
+of the semsimian release. The few extra rows come from the KG's HP, which is
+PHENIO's embedded HP. HP-HP now takes its information content from the KG's
+MONDO disease annotations, not from HPO's `phenotype.hpoa` file.
+
 ## Data Releases
 
 The results of this process are available on Zenodo:
