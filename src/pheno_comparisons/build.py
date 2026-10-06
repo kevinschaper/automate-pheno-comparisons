@@ -41,6 +41,7 @@ _RELEASE_SELECT = """
            ancestor_information_content, jaccard_similarity,
            'None' AS cosine_similarity, 'None' AS dice_similarity, phenodigm_score
     FROM read_parquet(?)
+    ORDER BY subject_id, object_id  -- deterministic output; also compresses ~30% smaller
 """
 
 
