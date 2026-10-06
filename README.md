@@ -10,11 +10,38 @@ This repository provides two equivalent ways to run the phenotype comparison pip
 
 Each run produces three comparison tarballs:
 
-- `HP_vs_HP_semsimian_phenio.tar.gz`
-- `HP_vs_MP_semsimian_phenio.tar.gz`
-- `HP_vs_ZP_semsimian_phenio.tar.gz`
+- `HP_vs_HP_semsimian_phenio.tsv.tar.gz`
+- `HP_vs_MP_semsimian_phenio_kg-<release>.tsv.tar.gz`
+- `HP_vs_ZP_semsimian_phenio_kg-<release>.tsv.tar.gz`
 
 Each tarball includes the similarity TSV, a YAML log file, and the information-content file used.
+The log records the ontology versions, the similarity engine, and the URL, checksum and date of
+the annotation file the information content was computed from.
+
+### Annotation sources and the `kg-<release>` tag
+
+Information content for HP-MP and HP-ZP comes from mouse and zebrafish gene-phenotype
+annotations exported by the Monarch KG. The `kg-<release>` tag names the KG release those
+annotations came from:
+
+- `--animal-annotations monarch-kg` (default): the current Monarch KG export, tagged with that
+  release's version, e.g. `kg-2026-09-04`. Only Biolink `Gene` subjects.
+- `--animal-annotations monarch-kg-2021-09`: the final dipper-era Monarch KG (2021-09), frozen.
+  Its annotations are sparser per subject (about 10 vs 15 phenotypes) and include non-gene MGI
+  markers (transgenes, QTLs, chromosomal aberrations). Broad terms therefore keep a higher
+  information content, more pairs clear the 1.5 cutoff, and HP-MP has ~95M rows vs ~61M.
+
+HP-HP uses the HPO disease annotations (`phenotype.hpoa`) from HPO directly and is untagged.
+Use a separate `--working-dir` per annotation source.
+
+### Similarity engines
+
+- `--engine semsimian` (default): `runoak similarity` with semsimian. Single-threaded.
+- `--engine ducksim`: the same all-by-all table computed in DuckDB SQL
+  (`experimental/ducksim_all_by_all.py`). Verified on the 2026-09-29 build to give identical rows,
+  scores, labels and formatting; only `ancestor_id` can differ, where several ancestors tie for
+  the maximum IC and semsimian picks one arbitrarily. About 20-35x faster. Set
+  `DUCKSIM_MEMORY_LIMIT` (e.g. `100GB`) and `DUCKSIM_THREADS` under SLURM.
 
 ## Data Releases
 
