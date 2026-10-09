@@ -68,8 +68,9 @@ uv run pheno-comparisons build monarch-kg.duckdb -o pheno-comparisons \
 Tarballs are named `<comparison>_kg-<release>.tsv.tar.gz`. They keep the
 historical 16-column TSV layout; columns semsimian never filled are the
 string `None`. On KG 2026-09-04 the HP-MP table reproduces every row and score
-of the semsimian release. The few extra rows come from the KG's HP, which is
-PHENIO's embedded HP. HP-HP now takes its information content from the KG's
+of the semsimian release. The few extra rows come from that release being built
+later, against a standalone HP published after the KG's PHENIO. Within a KG
+build, term sets, labels and closure all come from the same PHENIO. HP-HP now takes its information content from the KG's
 MONDO disease annotations, not from HPO's `phenotype.hpoa` file.
 
 ## Data Releases
