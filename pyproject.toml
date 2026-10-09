@@ -25,9 +25,9 @@ build-backend = "hatchling.build"
 packages = ["src/pheno_comparisons"]
 
 [tool.uv.sources]
-# koza's annotation-information-content / pairwise-similarity operations
-# (monarch-initiative/koza#256). Switch to a released koza once it merges.
-koza = { git = "https://github.com/monarch-initiative/koza.git", branch = "annotation-information-content" }
+# koza's annotation-information-content / pairwise-similarity operations are on
+# main (monarch-initiative/koza#256) but not yet released; switch to the release.
+koza = { git = "https://github.com/monarch-initiative/koza.git", branch = "main" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
