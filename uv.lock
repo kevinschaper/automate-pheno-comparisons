@@ -993,8 +993,8 @@ wheels = [
 
 [[package]]
 name = "koza"
-version = "2.6.2.post55.dev0+1a0f254"
-source = { git = "https://github.com/monarch-initiative/koza.git?branch=main#1a0f2541a18a4ddc210d94b80b93efab0a8616b4" }
+version = "2.7.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "biolink-model" },
     { name = "coverage" },
@@ -1011,6 +1011,10 @@ dependencies = [
     { name = "sssom" },
     { name = "tqdm" },
     { name = "typer" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/01/49/7b59dd66b7a9988edda665982fdfeb991bdf139483971a9983314bc406ef/koza-2.7.0.tar.gz", hash = "sha256:31a92591107f7411b53b0da3ecd17a0951fe74d7ff9a475e3b0bce82e93cc3df", size = 483587, upload-time = "2026-10-21T17:33:53.123Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/74/db/25f712f79a1c7bcbfe9a4290b915186dc88464c5f13c6d10cfc5e6710941/koza-2.7.0-py3-none-any.whl", hash = "sha256:8034ed218d05374bfc2a9f0029ca805fc998f23e23357a8362a602dac50e01a1", size = 196730, upload-time = "2026-10-21T17:33:51.446Z" },
 ]
 
 [[package]]
@@ -1768,7 +1772,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "duckdb", specifier = ">=1.1" },
-    { name = "koza", git = "https://github.com/monarch-initiative/koza.git?branch=main" },
+    { name = "koza", specifier = ">=2.7.0" },
     { name = "pyyaml", specifier = ">=6" },
 ]
 
