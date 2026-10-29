@@ -993,8 +993,8 @@ wheels = [
 
 [[package]]
 name = "koza"
-version = "2.7.0.post18.dev0+6e586f3"
-source = { git = "https://github.com/monarch-initiative/koza.git?branch=feat%2Fshared-annotation-ic-table#6e586f3f5e35b39797efd1ba6b95f4164a7a0099" }
+version = "2.7.0.post19.dev0+2baddae"
+source = { git = "https://github.com/monarch-initiative/koza.git?branch=feat%2Fshared-annotation-ic-table#2baddae2a4308a9592ab94c6787559764b95fc30" }
 dependencies = [
     { name = "biolink-model" },
     { name = "coverage" },
