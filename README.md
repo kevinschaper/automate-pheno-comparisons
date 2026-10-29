@@ -52,7 +52,7 @@ It is what the monarch-ingest KG build runs:
 
 ```bash
 uv sync
-# 1. write the annotation-IC tables into the KG (needs write access)
+# 1. write the annotation IC into the KG's annotation_information_content table (needs write access)
 uv run pheno-comparisons information-content monarch-kg.duckdb
 # 2. write the tarballs (reads the KG read-only)
 uv run pheno-comparisons build monarch-kg.duckdb -o pheno-comparisons \

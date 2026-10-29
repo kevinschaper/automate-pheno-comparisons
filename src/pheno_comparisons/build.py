@@ -20,6 +20,7 @@ from pheno_comparisons.spec import (
     COMPARISONS,
     CORPORA,
     CORPUS_TABLE,
+    IC_TABLE,
     MIN_ANCESTOR_INFORMATION_CONTENT,
 )
 
@@ -60,24 +61,26 @@ def _koza_version() -> str:
 
 
 def compute_information_content_tables(kg_path: str | Path, quiet: bool = True) -> list[dict]:
-    """Write one annotation-IC table per corpus into the KG, plus a provenance table.
+    """Write each corpus's annotation IC into the KG's shared `IC_TABLE`, plus a provenance table.
 
-    Needs write access to `kg_path` (run it in the KG build's sequential stage).
+    Replaces only these corpora's rows, so corpora other callers write stay. Needs
+    write access to `kg_path` (run it in the KG build's sequential stage).
     """
     kg_path = Path(kg_path)
     rows = []
     for corpus in CORPORA.values():
         result = compute_annotation_information_content(AnnotationInformationContentConfig(
             database_path=kg_path,
-            output_table=corpus.ic_table,
+            output_table=IC_TABLE,
+            corpus=corpus.key,
             association_categories=corpus.categories,
             subject_prefixes=corpus.subject_prefixes,
             object_prefixes=corpus.object_prefixes,
             quiet=quiet,
         ))
-        logger.info(f"{corpus.ic_table}: {result.term_count:,} terms from {result.entity_count:,} entities")
+        logger.info(f"{IC_TABLE} {corpus.key}: {result.term_count:,} terms from {result.entity_count:,} entities")
         rows.append({
-            "corpus": corpus.key, "ic_table": corpus.ic_table, "description": corpus.description,
+            "corpus": corpus.key, "description": corpus.description,
             "categories": corpus.categories, "subject_prefixes": corpus.subject_prefixes,
             "object_prefixes": corpus.object_prefixes, "entity_count": result.entity_count,
             "association_count": result.association_count, "term_count": result.term_count,
@@ -86,11 +89,11 @@ def compute_information_content_tables(kg_path: str | Path, quiet: bool = True) 
     con = duckdb.connect(str(kg_path))
     try:
         con.execute(f"""CREATE OR REPLACE TABLE {CORPUS_TABLE} (
-            corpus VARCHAR, ic_table VARCHAR, description VARCHAR, categories VARCHAR[],
+            corpus VARCHAR, description VARCHAR, categories VARCHAR[],
             subject_prefixes VARCHAR[], object_prefixes VARCHAR[], entity_count BIGINT,
             association_count BIGINT, term_count BIGINT, koza_version VARCHAR, computed_at VARCHAR)""")
         for r in rows:
-            con.execute(f"INSERT INTO {CORPUS_TABLE} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", list(r.values()))
+            con.execute(f"INSERT INTO {CORPUS_TABLE} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", list(r.values()))
     finally:
         con.close()
     return rows
@@ -197,7 +200,7 @@ def build_release(
             name = f"{stem}_{build_date}"
             parquet = work / f"{name}.parquet"
             result = compute_pairwise_similarity(PairwiseSimilarityConfig(
-                database_path=kg_path, output_path=parquet, ic_table=corpus.ic_table,
+                database_path=kg_path, output_path=parquet, ic_table=IC_TABLE, ic_corpus=corpus.key,
                 subject_root=comp.subject_root, subject_prefixes=[comp.subject_prefix],
                 object_root=comp.object_root, object_prefixes=[comp.object_prefix],
                 min_ancestor_information_content=MIN_ANCESTOR_INFORMATION_CONTENT,
@@ -218,7 +221,8 @@ def build_release(
                     f"SELECT count(*) FROM read_parquet({_q(str(parquet))}) "
                     "WHERE subject_label IS NULL OR object_label IS NULL").fetchone()[0]
                 con.execute(f"ATTACH {_q(str(kg_path))} AS kg (READ_ONLY)")
-                con.execute(f"COPY (SELECT term, ic FROM kg.{corpus.ic_table} ORDER BY term) "
+                con.execute(f"COPY (SELECT term, ic FROM kg.{IC_TABLE} WHERE corpus = {_q(corpus.key)} "
+                            "ORDER BY term) "
                             f"TO {_q(str(work / corpus.ic_file))} (FORMAT csv, HEADER false, DELIMITER '\t')")
             finally:
                 con.close()
@@ -238,7 +242,8 @@ def build_release(
                     "object_prefixes": list(corpus.object_prefixes),
                     "entities": prov.get("entity_count"),
                     "associations": prov.get("association_count"),
-                    "ic_table": corpus.ic_table,
+                    "ic_table": IC_TABLE,
+                    "ic_corpus": corpus.key,
                 },
                 "terms": {"subject_root": comp.subject_root, "subjects": result.subject_count,
                           "object_root": comp.object_root, "objects": result.object_count},

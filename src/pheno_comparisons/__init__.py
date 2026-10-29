@@ -2,9 +2,10 @@
 
 Two steps, matching the KG build's stages:
 
-1. :func:`compute_information_content_tables` writes one annotation-IC table per
+1. :func:`compute_information_content_tables` writes the annotation IC of each
    corpus (diseases -> HP, mouse genes -> MP, zebrafish genes -> ZP) into the
-   closurized KG. It needs write access, so it runs in the sequential stage.
+   closurized KG's shared `annotation_information_content` table. It needs write
+   access, so it runs in the sequential stage.
 2. :func:`build_release` reads the KG read-only and writes one tarball per
    comparison (HP-HP, HP-MP, HP-ZP) in the historical semsimian release format.
 

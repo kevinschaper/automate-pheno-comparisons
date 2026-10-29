@@ -11,7 +11,7 @@ import yaml
 from pheno_comparisons import build_release, compute_information_content_tables, ontology_versions
 from pheno_comparisons.build import RELEASE_COLUMNS
 from pheno_comparisons.cli import main
-from pheno_comparisons.spec import CORPUS_TABLE
+from pheno_comparisons.spec import CORPUS_TABLE, IC_TABLE
 
 PARENTS = {  # term -> direct superclasses; UPHENO:X groups HP:1, MP:1 and ZP:1
     "HP:1": ["HP:0000118", "UPHENO:X"], "HP:2": ["HP:0000118"],
@@ -68,13 +68,27 @@ def tables(path):
 
 def test_information_content_tables(kg):
     rows = compute_information_content_tables(kg)
-    assert {r["ic_table"]: r["entity_count"] for r in rows} == {
-        "information_content_mondo_hp": 4, "information_content_mgi_mp": 4, "information_content_zfin_zp": 4}
+    assert {r["corpus"]: r["entity_count"] for r in rows} == {"mondo_hp": 4, "mgi_mp": 4, "zfin_zp": 4}
     con = duckdb.connect(str(kg), read_only=True)
-    ic = dict(con.execute("SELECT term, ic FROM information_content_mgi_mp").fetchall())
+    ic = dict(con.execute(f"SELECT term, ic FROM {IC_TABLE} WHERE corpus = 'mgi_mp'").fetchall())
     assert ic["UPHENO:X"] == pytest.approx(2.0) and ic["MP:0000001"] == pytest.approx(0.0)
     assert con.execute(f"SELECT count(*) FROM {CORPUS_TABLE}").fetchone()[0] == 3
     con.close()
+
+
+def test_information_content_keeps_other_corpora(kg):
+    """Corpora other callers write into the shared table (monarch-ingest's search groups) survive a rerun."""
+    con = duckdb.connect(str(kg))
+    con.execute(f"CREATE TABLE {IC_TABLE} (corpus VARCHAR, term VARCHAR, ic DOUBLE)")
+    con.execute(f"INSERT INTO {IC_TABLE} VALUES ('hgnc_hp', 'HP:1', 7.0), ('mgi_mp', 'MP:STALE', 1.0)")
+    con.close()
+    compute_information_content_tables(kg)
+    con = duckdb.connect(str(kg), read_only=True)
+    corpora = dict(con.execute(f"SELECT corpus, count(*) FROM {IC_TABLE} GROUP BY corpus").fetchall())
+    stale = con.execute(f"SELECT count(*) FROM {IC_TABLE} WHERE term = 'MP:STALE'").fetchone()[0]
+    con.close()
+    assert corpora["hgnc_hp"] == 1 and stale == 0
+    assert set(corpora) == {"hgnc_hp", "mondo_hp", "mgi_mp", "zfin_zp"}
 
 
 def test_build_release(kg, tmp_path):
@@ -117,6 +131,8 @@ def test_build_release(kg, tmp_path):
     assert log["annotations"]["entities"] == 4 and log["rows"] == 1 and log["rows_without_labels"] == 0
     assert log["terms"]["subjects"] == 3 and log["terms"]["objects"] == 3
     assert "UPHENO:X\t2.0" in ic_lines
+    assert sorted(line.split("\t")[0] for line in ic_lines) == ["MP:0000001", "MP:1", "MP:2", "UPHENO:X"]
+    assert (log["annotations"]["ic_table"], log["annotations"]["ic_corpus"]) == (IC_TABLE, "mgi_mp")
 
 
 def test_build_requires_information_content(kg, tmp_path):

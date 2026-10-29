@@ -18,11 +18,11 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="command", required=True)
 
     ic = sub.add_parser("information-content",
-                        help="write the annotation-IC tables into a closurized KG (needs write access)")
+                        help="write the annotation IC into a closurized KG (needs write access)")
     ic.add_argument("kg", type=Path, help="closurized monarch-kg.duckdb")
 
     b = sub.add_parser("build", help="write the comparison tarballs (reads the KG read-only)")
-    b.add_argument("kg", type=Path, help="monarch-kg.duckdb with the annotation-IC tables")
+    b.add_argument("kg", type=Path, help="monarch-kg.duckdb with the annotation IC")
     b.add_argument("-o", "--output-dir", type=Path, required=True)
     b.add_argument("--kg-version", required=True, help="KG release, e.g. 2026-09-04; names files kg-<version>")
     b.add_argument("--metadata", type=Path,
@@ -38,7 +38,7 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if args.command == "information-content":
         for row in compute_information_content_tables(args.kg):
-            print(f"{row['ic_table']}: {row['term_count']:,} terms, {row['entity_count']:,} entities")
+            print(f"{row['corpus']}: {row['term_count']:,} terms, {row['entity_count']:,} entities")
         return 0
     versions = {}
     if args.metadata:
