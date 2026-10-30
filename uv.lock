@@ -993,8 +993,8 @@ wheels = [
 
 [[package]]
 name = "koza"
-version = "2.7.0.post19.dev0+2baddae"
-source = { git = "https://github.com/monarch-initiative/koza.git?branch=feat%2Fshared-annotation-ic-table#2baddae2a4308a9592ab94c6787559764b95fc30" }
+version = "2.7.0.post20.dev0+24399bf"
+source = { git = "https://github.com/monarch-initiative/koza.git?branch=main#24399bf773fc847cee3da56bcba0b43d2ae7d0e6" }
 dependencies = [
     { name = "biolink-model" },
     { name = "coverage" },
@@ -1768,7 +1768,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "duckdb", specifier = ">=1.1" },
-    { name = "koza", git = "https://github.com/monarch-initiative/koza.git?branch=feat%2Fshared-annotation-ic-table" },
+    { name = "koza", git = "https://github.com/monarch-initiative/koza.git?branch=main" },
     { name = "pyyaml", specifier = ">=6" },
 ]
 

@@ -25,9 +25,9 @@ build-backend = "hatchling.build"
 packages = ["src/pheno_comparisons"]
 
 [tool.uv.sources]
-# corpus / ic_corpus (one shared annotation-IC table) are on a koza PR branch;
-# switch to the koza release that includes them.
-koza = { git = "https://github.com/monarch-initiative/koza.git", branch = "feat/shared-annotation-ic-table" }
+# corpus / ic_corpus (one shared annotation-IC table, monarch-initiative/koza#268)
+# are on koza main but not yet released; switch to the release that includes them.
+koza = { git = "https://github.com/monarch-initiative/koza.git", branch = "main" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
