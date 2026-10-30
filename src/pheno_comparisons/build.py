@@ -9,6 +9,7 @@ import subprocess
 import tarfile
 from datetime import datetime, timezone
 from importlib.metadata import version as package_version
+from collections.abc import Iterable
 from pathlib import Path
 
 import duckdb
@@ -17,11 +18,14 @@ from koza.graph_operations import compute_annotation_information_content, comput
 from koza.model.graph_operations import AnnotationInformationContentConfig, PairwiseSimilarityConfig
 
 from pheno_comparisons.spec import (
+    ASSOCIATION_PREDICATE,
     COMPARISONS,
     CORPORA,
+    CORPUS_COLUMNS,
     CORPUS_TABLE,
     IC_TABLE,
     MIN_ANCESTOR_INFORMATION_CONTENT,
+    Corpus,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,24 +64,35 @@ def _koza_version() -> str:
 # --------------------------------------------------------------------------- step 1
 
 
-def compute_information_content_tables(kg_path: str | Path, quiet: bool = True) -> list[dict]:
-    """Write each corpus's annotation IC into the KG's shared `IC_TABLE`, plus a provenance table.
+def compute_information_content_tables(
+    kg_path: str | Path, quiet: bool = True, corpora: Iterable[Corpus] | None = None
+) -> list[dict]:
+    """Write each corpus's annotation IC into the KG's shared `IC_TABLE` and record it in `CORPUS_TABLE`.
 
-    Replaces only these corpora's rows, so corpora other callers write stay. Needs
-    write access to `kg_path` (run it in the KG build's sequential stage).
+    `corpora` defaults to the release's `CORPORA`; callers pass their own to add corpora to the
+    same tables (monarch-ingest adds the Monarch API's other search groups). Only the given
+    corpora's rows are replaced in either table, so runs for different corpora can come in any
+    order. A corpus with no annotations fails the run rather than leaving an empty corpus to
+    surface later. Needs write access to `kg_path` (run it in the KG build's sequential stage).
     """
     kg_path = Path(kg_path)
     rows = []
-    for corpus in CORPORA.values():
+    for corpus in corpora if corpora is not None else CORPORA.values():
         result = compute_annotation_information_content(AnnotationInformationContentConfig(
             database_path=kg_path,
             output_table=IC_TABLE,
             corpus=corpus.key,
+            association_predicate=ASSOCIATION_PREDICATE,
             association_categories=corpus.categories,
             subject_prefixes=corpus.subject_prefixes,
             object_prefixes=corpus.object_prefixes,
+            include_negated=False,
             quiet=quiet,
         ))
+        if not result.entity_count:
+            raise RuntimeError(
+                f"annotation corpus {corpus.key} ({corpus.description}) has no annotated entities in {kg_path}"
+            )
         logger.info(f"{IC_TABLE} {corpus.key}: {result.term_count:,} terms from {result.entity_count:,} entities")
         rows.append({
             "corpus": corpus.key, "description": corpus.description,
@@ -86,17 +101,24 @@ def compute_information_content_tables(kg_path: str | Path, quiet: bool = True) 
             "association_count": result.association_count, "term_count": result.term_count,
             "koza_version": _koza_version(), "computed_at": datetime.now(timezone.utc).isoformat(),
         })
+    _record_corpora(kg_path, rows)
+    return rows
+
+
+def _record_corpora(kg_path: Path, rows: list[dict]) -> None:
+    """Replace these corpora's rows of `CORPUS_TABLE`, creating it if needed, in one transaction."""
+    columns = ", ".join(CORPUS_COLUMNS)
     con = duckdb.connect(str(kg_path))
     try:
-        con.execute(f"""CREATE OR REPLACE TABLE {CORPUS_TABLE} (
-            corpus VARCHAR, description VARCHAR, categories VARCHAR[],
-            subject_prefixes VARCHAR[], object_prefixes VARCHAR[], entity_count BIGINT,
-            association_count BIGINT, term_count BIGINT, koza_version VARCHAR, computed_at VARCHAR)""")
-        for r in rows:
-            con.execute(f"INSERT INTO {CORPUS_TABLE} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", list(r.values()))
+        con.execute("BEGIN TRANSACTION")
+        con.execute(f"CREATE TABLE IF NOT EXISTS {CORPUS_TABLE} "
+                    f"({', '.join(f'{c} {t}' for c, t in CORPUS_COLUMNS.items())})")
+        con.execute(f"DELETE FROM {CORPUS_TABLE} WHERE corpus IN (SELECT unnest(?))", [[r["corpus"] for r in rows]])
+        con.executemany(f"INSERT INTO {CORPUS_TABLE} ({columns}) VALUES ({', '.join('?' for _ in CORPUS_COLUMNS)})",
+                        [[r[c] for c in CORPUS_COLUMNS] for r in rows])
+        con.execute("COMMIT")
     finally:
         con.close()
-    return rows
 
 
 # --------------------------------------------------------------------------- versions
@@ -112,7 +134,11 @@ def ontology_versions(sources: list[dict]) -> dict[str, str]:
     found: dict[str, str] = {}
 
     def walk(nodes, inside_phenio=False):
-        for node in nodes or []:
+        if not isinstance(nodes, list):
+            return
+        for node in nodes:
+            if not isinstance(node, dict):  # an empty or malformed metadata document; versions are log-only
+                continue
             node_id = str(node.get("id", ""))
             is_phenio = node_id in ("phenio", "infores:phenio")
             if is_phenio and node.get("version"):
@@ -157,7 +183,8 @@ def _corpus_provenance(kg_path: Path) -> dict[str, dict]:
         return {r[0]: dict(zip(cols, r)) for r in cur.fetchall()}
     except duckdb.CatalogException as e:
         raise RuntimeError(
-            f"{kg_path} has no {CORPUS_TABLE} table; run `pheno-comparisons information-content` first"
+            f"{kg_path} has no {CORPUS_TABLE} table; compute the annotation information content first "
+            "(`pheno-comparisons information-content`, or the KG build's `information-content` stage)"
         ) from e
     finally:
         con.close()

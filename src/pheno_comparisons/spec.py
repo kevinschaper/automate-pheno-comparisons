@@ -15,7 +15,7 @@ class Corpus:
     `IC_TABLE`."""
 
     key: str
-    ic_file: str  # name of the IC file inside the tarball (historical names)
+    ic_file: str = ""  # name of the IC file inside a release tarball (historical names)
     categories: list[str] = field(default_factory=list)
     subject_prefixes: list[str] = field(default_factory=list)
     object_prefixes: list[str] = field(default_factory=list)
@@ -74,3 +74,11 @@ IC_TABLE = "annotation_information_content"
 
 # Provenance: one row per corpus in IC_TABLE.
 CORPUS_TABLE = "pheno_comparison_corpora"
+CORPUS_COLUMNS = {
+    "corpus": "VARCHAR", "description": "VARCHAR", "categories": "VARCHAR[]",
+    "subject_prefixes": "VARCHAR[]", "object_prefixes": "VARCHAR[]", "entity_count": "BIGINT",
+    "association_count": "BIGINT", "term_count": "BIGINT", "koza_version": "VARCHAR", "computed_at": "VARCHAR",
+}
+
+# Every corpus is built from these edges; negated annotations are left out.
+ASSOCIATION_PREDICATE = "biolink:has_phenotype"

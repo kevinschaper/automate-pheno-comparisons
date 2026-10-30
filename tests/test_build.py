@@ -8,7 +8,7 @@ import duckdb
 import pytest
 import yaml
 
-from pheno_comparisons import build_release, compute_information_content_tables, ontology_versions
+from pheno_comparisons import Corpus, build_release, compute_information_content_tables, ontology_versions
 from pheno_comparisons.build import RELEASE_COLUMNS
 from pheno_comparisons.cli import main
 from pheno_comparisons.spec import CORPUS_TABLE, IC_TABLE
@@ -91,6 +91,37 @@ def test_information_content_keeps_other_corpora(kg):
     assert set(corpora) == {"hgnc_hp", "mondo_hp", "mgi_mp", "zfin_zp"}
 
 
+def test_extra_corpora_survive_a_rerun_in_both_tables(kg):
+    """A caller's own corpora (monarch-ingest's search groups) stay registered when the release's are rebuilt."""
+    extra = Corpus(key="mgi_hp_decoy", categories=[GENE], subject_prefixes=["MGI"], object_prefixes=["MP"],
+                   description="extra corpus")
+    compute_information_content_tables(kg)
+    compute_information_content_tables(kg, corpora=[extra])
+    compute_information_content_tables(kg)  # the release's corpora again, as `pheno-comparisons information-content`
+    con = duckdb.connect(str(kg), read_only=True)
+    registered = sorted(r[0] for r in con.execute(f"SELECT corpus FROM {CORPUS_TABLE}").fetchall())
+    with_ic = sorted(r[0] for r in con.execute(f"SELECT DISTINCT corpus FROM {IC_TABLE}").fetchall())
+    con.close()
+    assert registered == with_ic == ["mgi_hp_decoy", "mgi_mp", "mondo_hp", "zfin_zp"]
+
+
+def test_corpus_without_annotations_fails(kg):
+    empty = Corpus(key="wb_wbphenotype", categories=[GENE], subject_prefixes=["WB"], object_prefixes=["WBPhenotype"])
+    with pytest.raises(RuntimeError, match="wb_wbphenotype .* no annotated entities"):
+        compute_information_content_tables(kg, corpora=[empty])
+    con = duckdb.connect(str(kg), read_only=True)
+    assert not con.execute("SELECT count(*) FROM duckdb_tables() WHERE table_name = ?", [CORPUS_TABLE]).fetchone()[0]
+    con.close()
+
+
+def test_negated_annotations_are_excluded(kg):
+    con = duckdb.connect(str(kg))
+    con.execute("INSERT INTO edges VALUES ('neg', 'MGI:5', 'biolink:has_phenotype', 'MP:1', ?, 'True')", [GENE])
+    con.close()
+    rows = compute_information_content_tables(kg)
+    assert {r["corpus"]: r["entity_count"] for r in rows}["mgi_mp"] == 4
+
+
 def test_build_release(kg, tmp_path):
     compute_information_content_tables(kg)
     before = tables(kg)
@@ -155,6 +186,14 @@ def test_ontology_versions():
     ]
     assert ontology_versions(sources) == {
         "phenio": "v2026-09-01", "hp": "2026-06-23", "mp": "2026-08-25", "zp": "2024-04-18"}
+
+
+def test_ontology_versions_skips_malformed_documents():
+    """An empty or non-YAML release-metadata download must not abort the build: versions are log-only."""
+    sources = [None, "<html>not yaml</html>", ["a", "list"],
+               {"id": "kg-phenio", "sources": "oops"},
+               {"id": "phenio", "version": "v1", "sources": [None, {"id": "infores:hp", "version": "h"}]}]
+    assert ontology_versions(sources) == {"phenio": "v1", "hp": "h"}
 
 
 def test_cli(kg, tmp_path):
